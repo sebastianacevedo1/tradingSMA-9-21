@@ -28,12 +28,12 @@ log = logging.getLogger(__name__)
 API_KEY    = ""
 SECRET_KEY = ""
 
-# Parámetros de Telegram (Ya probados y funcionales)
+
 TELEGRAM_ACTIVO  = True
 TELEGRAM_TOKEN   = ""
 TELEGRAM_CHAT_ID = ""
 
-# Parámetros del Mercado
+
 PAR_TRADING     = "BTCUSDT"
 BASE_ASSET      = "BTC"   # Moneda que compras
 QUOTE_ASSET     = "USDT"  # Moneda con la que pagas
@@ -44,7 +44,7 @@ INTERVALO_LOOP  = 10
 VELAS_LIMITE    = 50             
 ARCHIVO_ESTADO  = Path("estado_bot_real.json")  # Cambiamos el archivo para no mezclar con pruebas
 
-# Parámetros de Gestión de Riesgo (Modifícalos a tu gusto)
+
 STOP_LOSS_PCT   = 0.01   # 1.0%
 TAKE_PROFIT_PCT = 0.02   # 2.0%
 
@@ -57,13 +57,13 @@ def enviar_telegram(mensaje: str) -> None:
 
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     
-    # Eliminamos los asteriscos de formato para que sea texto limpio y no confunda a la API
+    
     texto_limpio = mensaje.replace("*", "")
     
     payload = json.dumps({
         "chat_id": TELEGRAM_CHAT_ID,
         "text": texto_limpio
-        # Quitamos la línea de parse_mode para que no intente validar HTML ni Markdown
+        
     }).encode("utf-8")
 
     headers = {"Content-Type": "application/json"}
@@ -109,7 +109,7 @@ class Estado:
             try:
                 datos = json.loads(ARCHIVO_ESTADO.read_text())
                 instancia = cls(**datos)
-                log.info("♻️  Historial de operaciones restaurado desde el archivo JSON.")
+                log.info("  Historial de operaciones restaurado desde el archivo JSON.")
             except Exception as exc:
                 log.warning("No se pudo leer el archivo de estado anterior: %s", exc)
         
@@ -126,17 +126,16 @@ class Estado:
             self.usdt = saldo_usdt
             self.btc  = saldo_btc
             
-            # Si tienes una cantidad significativa de BTC, asumimos que estás dentro de una posición
-            # (Fijamos un umbral mínimo de 0.0001 BTC para ignorar polvos/remanentes de comisiones)
+
             if self.btc > 0.0001:
                 self.en_posicion = True
             else:
                 self.en_posicion = False
                 self.btc = 0.0
 
-            log.info(f"💰 [SINCRO REAL] Balance en Binance -> USDT disponible: ${self.usdt:,.2f} | BTC libre: {self.btc:.6f}")
+            log.info(f" [SINCRO REAL] Balance en Binance -> USDT disponible: ${self.usdt:,.2f} | BTC libre: {self.btc:.6f}")
         except Exception as exc:
-            log.error("❌ Error crítico al sincronizar balances reales con Binance: %s", exc)
+            log.error(" Error crítico al sincronizar balances reales con Binance: %s", exc)
 
 
 # ─── Mercado ──────────────────────────────────────────────────────────────────
@@ -161,19 +160,19 @@ def obtener_indicadores(client: Client) -> tuple[Optional[float], Optional[float
 # ─── Trading Real (Órdenes a Mercado) ─────────────────────────────────────────
 def ejecutar_compra_real(client: Client, estado: Estado, precio: float) -> None:
     try:
-        log.info(f"🛒 Enviando ORDEN DE COMPRA REAL a Binance por un total de ${estado.usdt:,.2f} USDT...")
+        log.info(f" Enviando ORDEN DE COMPRA REAL a Binance por un total de ${estado.usdt:,.2f} USDT...")
         
-        # Ajuste de seguridad: dejamos 1 USDT libre para cubrir variaciones de comisiones flotantes
+        
         monto_compra = floor_float(estado.usdt - 1.0, 2)
         
         if monto_compra < 11.0:
-            log.error("❌ Saldo insuficiente en USDT para cumplir el mínimo de compra de Binance ($10 USDT).")
+            log.error(" Saldo insuficiente en USDT para cumplir el mínimo de compra de Binance ($10 USDT).")
             return
 
-        # 🚀 ORDEN REAL DE COMPRA EN SPOT
+        #  ORDEN REAL DE COMPRA EN SPOT
         orden = client.order_market_buy(symbol=PAR_TRADING, quoteOrderQty=monto_compra)
         
-        # Procesamos la respuesta oficial de Binance
+        
         precio_ejecutado = sum(float(f['price']) * float(f['qty']) for f in orden['fills']) / sum(float(f['qty']) for f in orden['fills']) if orden['fills'] else precio
         btc_adquirido = float(orden['executedQty'])
         
@@ -183,28 +182,28 @@ def ejecutar_compra_real(client: Client, estado: Estado, precio: float) -> None:
         estado.en_posicion    = True
         estado.operaciones   += 1
         
-        log.info(f"🟩 COMPRA REAL EXITOSA | Precio Promedio: ${precio_ejecutado:,.2f} | Comprado: {btc_adquirido:.6f} BTC")
+        log.info(f" COMPRA REAL EXITOSA | Precio Promedio: ${precio_ejecutado:,.2f} | Comprado: {btc_adquirido:.6f} BTC")
         
         precio_sl = precio_ejecutado * (1 - STOP_LOSS_PCT)
         precio_tp = precio_ejecutado * (1 + TAKE_PROFIT_PCT)
         
         estado.guardar()
-        enviar_telegram(f"🟩 COMPRA REAL EJECUTADA\n\n• Precio: ${precio_ejecutado:,.2f} USDT\n• Comprado: {btc_adquirido:.6f} BTC\n• SL: ${precio_sl:,.2f} | TP: ${precio_tp:,.2f}")
+        enviar_telegram(f" COMPRA REAL EJECUTADA\n\n• Precio: ${precio_ejecutado:,.2f} USDT\n• Comprado: {btc_adquirido:.6f} BTC\n• SL: ${precio_sl:,.2f} | TP: ${precio_tp:,.2f}")
 
     except (BinanceAPIException, BinanceOrderException) as exc:
-        log.error("❌ La orden de compra fue rechazada por Binance: %s", exc)
-        enviar_telegram(f"❌ ERROR CRÍTICO: Binance rechazó la orden de compra real. Detalles: {exc}")
-        estado.sincronizar_balances_reales(client) # Re-sincronizar para evitar bloqueos
+        log.error(" La orden de compra fue rechazada por Binance: %s", exc)
+        enviar_telegram(f" ERROR CRÍTICO: Binance rechazó la orden de compra real. Detalles: {exc}")
+        estado.sincronizar_balances_reales(client) 
 
 
 def ejecutar_venta_real(client: Client, estado: Estado, precio: float, motivo: str = "ESTRATEGIA") -> None:
     try:
-        log.info(f"🛒 Enviando ORDEN DE VENTA REAL a Binance por un total de {estado.btc:.6f} BTC...")
+        log.info(f" Enviando ORDEN DE VENTA REAL a Binance por un total de {estado.btc:.6f} BTC...")
         
-        # Truncamos los decimales de BTC según las reglas de Binance para evitar errores de precisión
+        
         cantidad_venta = floor_float(estado.btc, 5)
 
-        # 🚀 ORDEN REAL DE VENTA EN SPOT
+        
         orden = client.order_market_sell(symbol=PAR_TRADING, quantity=cantidad_venta)
         
         precio_ejecutado = sum(float(f['price']) * float(f['qty']) for f in orden['fills']) / sum(float(f['qty']) for f in orden['fills']) if orden['fills'] else precio
@@ -217,15 +216,15 @@ def ejecutar_venta_real(client: Client, estado: Estado, precio: float, motivo: s
         estado.en_posicion = False
         estado.operaciones += 1
         
-        log.info(f"🟥 VENTA REAL EXITOSA ({motivo}) | Precio: ${precio_ejecutado:,.2f} | Recibido: ${usdt_recibido:,.2f} USDT")
+        log.info(f" VENTA REAL EXITOSA ({motivo}) | Precio: ${precio_ejecutado:,.2f} | Recibido: ${usdt_recibido:,.2f} USDT")
         
         estado.guardar()
-        icono = "🚨" if "STOP" in motivo else "💰" if "PROFIT" in motivo else "⚡"
+        icono = "" if "STOP" in motivo else "" if "PROFIT" in motivo else ""
         enviar_telegram(f"{icono} VENTA REAL EJECUTADA ({motivo})\n\n• Precio Venta: ${precio_ejecutado:,.2f} USDT\n• Resultado: {ganancia:+,.2f} USDT\n• Saldo Total: ${usdt_recibido:,.2f} USDT")
 
     except (BinanceAPIException, BinanceOrderException) as exc:
-        log.error("❌ La orden de venta fue rechazada por Binance: %s", exc)
-        enviar_telegram(f"❌ ERROR CRÍTICO: ¡No se pudo ejecutar la venta real! Cierre la posición manualmente en la app. Detalles: {exc}")
+        log.error(" La orden de venta fue rechazada por Binance: %s", exc)
+        enviar_telegram(f" ERROR CRÍTICO: ¡No se pudo ejecutar la venta real! Cierre la posición manualmente en la app. Detalles: {exc}")
         estado.sincronizar_balances_reales(client)
 
 
@@ -236,39 +235,39 @@ def evaluar_senal(client: Client, estado: Estado, sma_r: float, sma_l: float, pr
 
     log.info(f"REAL | BTC: ${precio:,.2f} | SMA(9): {sma_r:,.2f} | SMA(21): {sma_l:,.2f} | Balance Total: ${estado.valor_total:,.2f} USDT")
 
-    # 1. Monitoreo de Riesgo Real
+    
     if estado.en_posicion:
         precio_sl = estado.precio_entrada * (1 - STOP_LOSS_PCT)
         precio_tp = estado.precio_entrada * (1 + TAKE_PROFIT_PCT)
 
         if precio <= precio_sl:
-            log.warning(f"🚨 STOP LOSS REAL GATILLADO!")
+            log.warning(f" STOP LOSS REAL GATILLADO!")
             ejecutar_venta_real(client, estado, precio, motivo="STOP LOSS")
             estado.cruce_anterior = rapida_arriba
             return
 
         if precio >= precio_tp:
-            log.info(f"💰 TAKE PROFIT REAL GATILLADO!")
+            log.info(f" TAKE PROFIT REAL GATILLADO!")
             ejecutar_venta_real(client, estado, precio, motivo="TAKE PROFIT")
             estado.cruce_anterior = rapida_arriba
             return
 
-    # 2. Calibración en Frío
+    
     if estado.cruce_anterior is None:
         estado.cruce_anterior = rapida_arriba
-        log.info("📡 Calibración inicial de mercado completada en producción.")
-        enviar_telegram(f"🤖 Bot Real en Marcha\nMonitoreando {PAR_TRADING}. Sincronizado con tus fondos reales.")
+        log.info(" Calibración inicial de mercado completada en producción.")
+        enviar_telegram(f" Bot Real en Marcha\nMonitoreando {PAR_TRADING}. Sincronizado con tus fondos reales.")
         return
 
-    # 3. Decisiones de Cruce
+   
     hubo_cruce = rapida_arriba != estado.cruce_anterior
 
     if hubo_cruce:
         if rapida_arriba and not estado.en_posicion:
-            log.info("⚡ Cruce alcista en mercado real.")
+            log.info(" Cruce alcista en mercado real.")
             ejecutar_compra_real(client, estado, precio)
         elif not rapida_arriba and estado.en_posicion:
-            log.info("⚡ Cruce bajista en mercado real.")
+            log.info(" Cruce bajista en mercado real.")
             ejecutar_venta_real(client, estado, precio, motivo="CRUCE MEDIAS")
 
     estado.cruce_anterior = rapida_arriba
@@ -290,7 +289,7 @@ def main() -> None:
     client = Client(API_KEY, SECRET_KEY)
     estado = Estado.cargar(client)
 
-    log.info("🚀 BOT EN PRODUCCIÓN INICIADO — PAR: %s", PAR_TRADING)
+    log.info(" BOT EN PRODUCCIÓN INICIADO — PAR: %s", PAR_TRADING)
     log.info("%s", "═" * 60)
 
     while True:
@@ -308,6 +307,6 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        log.info("🛑 Bot detenido manualmente por el operador.")
+        log.info(" Bot detenido manualmente por el operador.")
     except Exception as exc:
-        log.critical("💥 Apagado general por error fatal: %s", exc, exc_info=True)
+        log.critical(" Apagado general por error fatal: %s", exc, exc_info=True)
