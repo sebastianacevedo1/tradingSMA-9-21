@@ -28,13 +28,13 @@ try:
         
         # Solo mostramos las monedas donde tengas algo de saldo
         if disponible > 0 or bloqueado > 0:
-            print(f"💰 {crypto['asset']}: Disponible = {disponible} | En Órdenes = {bloqueado}")
+            print(f" {crypto['asset']}: Disponible = {disponible} | En Órdenes = {bloqueado}")
             encontro_saldo = True
 
     if not encontro_saldo:
         print("Tu billetera Spot está en 0. Necesitas transferir algunos fondos (como USDT) para que el bot opere.")
 
 except BinanceAPIException as e:
-    print(f"\n❌ Error de Binance: {e.message} (Código de estado: {e.status_code})")
+    print(f"\n Error de Binance: {e.message} (Código de estado: {e.status_code})")
 except Exception as e:
-    print(f"\n❌ Error inesperado: {e}")
+    print(f"\n Error inesperado: {e}")
