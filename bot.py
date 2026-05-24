@@ -2,8 +2,8 @@ from binance.client import Client
 from binance.exceptions import BinanceAPIException
 
 # Coloca tus llaves aquí
-API_KEY = 'ugrQPLNPrbnoe9eb8wB6UQTz4IgbXNCAnNdn1gdH3biGP0DXu0PE95AI0WmCKWPx'
-SECRET_KEY = 'qhthUAR6MsABz9KguAyzTn9DPm4wv0E4MMmzNzwIucHvGCiqexv8e43biEz5PAW8'
+API_KEY = ''
+SECRET_KEY = ''
 
 try:
     print("Conectando de forma segura a Binance...")
